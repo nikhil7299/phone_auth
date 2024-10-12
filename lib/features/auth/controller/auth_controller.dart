@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phone_auth/features/auth/controller/auth_result.dart';
 import 'package:phone_auth/features/auth/controller/auth_state.dart';
 import 'package:phone_auth/features/auth/controller/authenticator.dart';
-import 'package:phone_auth/features/auth/views/enter_password_view.dart';
+import 'package:phone_auth/features/auth/views/change_password_view.dart';
+import 'package:phone_auth/features/user/user_controller.dart';
+import 'package:phone_auth/features/user/user_state.dart';
 
 final isLoggedInProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -23,6 +25,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   AuthStateNotifier(this.ref) : super(const AuthState.unknown()) {
     _authenticator = ref.watch(authenticatorProvider);
     if (_authenticator!.isAlreadyLoggedIn) {
+      getUser().then(
+        (user) => ref.read(userProvider.notifier).setUser(user),
+      );
       state = AuthState(
         result: AuthResult.success,
         isLoading: false,
@@ -31,7 +36,20 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> sendOtp(BuildContext context, {required String phone}) async {
+  Future<UserState> getUser() async {
+    final db = FirebaseFirestore.instance;
+
+    final driverDoc = await db
+        .collection('Driver')
+        .where('PhoneNumber',
+            isEqualTo: _authenticator?.currentUser?.phoneNumber)
+        .limit(1)
+        .get();
+    return UserState.fromMap(driverDoc.docs.first.data());
+  }
+
+  Future<void> sendOtp(BuildContext context,
+      {required String phone, required String password}) async {
     final sm = ScaffoldMessenger.of(context);
     state = state.copiedWithIsLoading(true);
     final db = FirebaseFirestore.instance;
@@ -41,11 +59,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         .limit(1)
         .get();
     if (driverDoc.docs.isEmpty) {
-      sm.showSnackBar(
-          const SnackBar(content: Text("User with this phone doesn't exists")));
+      sm.showSnackBar(const SnackBar(
+          content: Text("User with this Phone Number doesn't exists")));
       state = const AuthState(
           result: AuthResult.failure, isLoading: false, userId: null);
-
+      return;
+    }
+    if (driverDoc.docs.first.data()['Password'] != password) {
+      sm.showSnackBar(
+        const SnackBar(content: Text('Incorrect Password')),
+      );
+      state = const AuthState(
+          result: AuthResult.failure, isLoading: false, userId: null);
       return;
     }
 
@@ -54,42 +79,57 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     state = AuthState(result: result, isLoading: false, userId: null);
   }
 
-  Future<void> validateOtp(
+  Future<void> validateOtpAndSignIn(
     BuildContext context, {
     required String verificationId,
     required String otp,
   }) async {
     state = state.copiedWithIsLoading(true);
-    final result =
-        await _authenticator!.validateOtp(context, verificationId, otp);
-    if (result == AuthResult.otpValidated) {
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => EnterPasswordView(),
-          ));
-      state = const AuthState(
-          result: AuthResult.otpValidated, isLoading: false, userId: null);
-      return;
+    final result = await _authenticator!
+        .validateOtpAndSignIn(context, verificationId, otp);
+    if (context.mounted) {
+      if (result.$1 == AuthResult.success) {
+        if (result.$2) {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChangePasswordView(),
+              ));
+        } else {
+          Navigator.pop(context);
+        }
+
+        state = AuthState(
+            result: AuthResult.success,
+            isLoading: false,
+            userId: _authenticator!.userId);
+        return;
+      }
     }
     state = const AuthState(
         result: AuthResult.failure, isLoading: false, userId: null);
   }
 
-  Future<void> signIn(BuildContext context, {required String password}) async {
+  Future<void> changePassword(
+      BuildContext context, String currentPass, String newPass) async {
+    final sm = ScaffoldMessenger.of(context);
+
     state = state.copiedWithIsLoading(true);
-    final result = await _authenticator!.signIn(context, password);
-    if (result == AuthResult.success) {
-      Navigator.pop(context);
-      Navigator.pop(context);
-      state = AuthState(
-          result: AuthResult.success,
-          isLoading: false,
-          userId: _authenticator!.userId);
-      return;
+    final res =
+        await _authenticator!.changePassword(context, currentPass, newPass);
+    if (context.mounted) {
+      if (res) {
+        Navigator.pop(context);
+        Navigator.pop(context);
+        sm.showSnackBar(
+          const SnackBar(
+            content: Text('Password Changed Successfully'),
+          ),
+        );
+      }
     }
-    state = const AuthState(
-        result: AuthResult.failure, isLoading: false, userId: null);
+
+    state = state.copiedWithIsLoading(false);
   }
 
   Future<void> logOut() async {

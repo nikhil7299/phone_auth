@@ -11,9 +11,11 @@ class LoginView extends ConsumerStatefulWidget {
 
 class _LoginViewState extends ConsumerState<LoginView> {
   late final TextEditingController phoneController;
+  late final TextEditingController passwordController;
   @override
   void initState() {
     phoneController = TextEditingController();
+    passwordController = TextEditingController();
     super.initState();
   }
 
@@ -28,21 +30,29 @@ class _LoginViewState extends ConsumerState<LoginView> {
     return Scaffold(
       appBar: AppBar(),
       body: ListView(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         children: [
           TextField(
+            decoration: const InputDecoration(hintText: 'Enter Phone Number'),
             onTapOutside: (event) =>
                 FocusManager.instance.primaryFocus?.unfocus(),
             controller: phoneController,
             keyboardType: TextInputType.phone,
           ),
+          TextField(
+            decoration: const InputDecoration(hintText: 'Enter Password'),
+            onTapOutside: (event) =>
+                FocusManager.instance.primaryFocus?.unfocus(),
+            controller: passwordController,
+            keyboardType: TextInputType.visiblePassword,
+          ),
           FilledButton(
               onPressed: () async {
-                await ref
-                    .read(authStateProvider.notifier)
-                    .sendOtp(context, phone: phoneController.text);
+                await ref.read(authStateProvider.notifier).sendOtp(context,
+                    phone: phoneController.text,
+                    password: passwordController.text);
               },
-              child: Text("Send OTP"))
+              child: const Text('Send OTP'))
         ],
       ),
     );

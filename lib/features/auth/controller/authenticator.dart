@@ -46,7 +46,12 @@ class Authenticator {
           );
         },
         codeSent: (verificationId, forceResendingToken) {
-          print(verificationId);
+          // print(verificationId);
+          sm.showSnackBar(
+            const SnackBar(
+              content: Text('OTP Sent Successfully'),
+            ),
+          );
           navigator.push(
             MaterialPageRoute(
               builder: (context) => EnterOtpView(verificationId),
@@ -74,15 +79,30 @@ class Authenticator {
     }
   }
 
-  Future<AuthResult> validateOtp(
+  Future<(AuthResult, bool)> validateOtpAndSignIn(
       BuildContext context, String verificationId, String otp) async {
     final sm = ScaffoldMessenger.of(context);
+    final db = FirebaseFirestore.instance;
+
     final phoneAuthCredential = PhoneAuthProvider.credential(
         verificationId: verificationId, smsCode: otp);
 
     try {
       await auth.signInWithCredential(phoneAuthCredential);
-      return AuthResult.otpValidated;
+      final driverDoc = await db
+          .collection('Driver')
+          .where('PhoneNumber', isEqualTo: currentUser?.phoneNumber)
+          .limit(1)
+          .get();
+      final bool isDefaultPassword =
+          driverDoc.docs.first.data()['isDefaultPassword'];
+      final shouldChangePassword = isDefaultPassword == true;
+      ref
+          .read(userProvider.notifier)
+          .setUser(UserState.fromMap(driverDoc.docs.first.data()));
+      sm.showSnackBar(
+          const SnackBar(content: Text('User Logged in Successfully')));
+      return (AuthResult.success, shouldChangePassword);
     } catch (e) {
       if (e is FirebaseAuthException) {
         sm.showSnackBar(
@@ -97,36 +117,37 @@ class Authenticator {
         ),
       );
       print(e.toString());
-      return AuthResult.failure;
+      return (AuthResult.failure, false);
     }
   }
 
-  Future<AuthResult> signIn(BuildContext context, String pasword) async {
+  Future<bool> changePassword(
+      BuildContext context, String currentPass, String newPass) async {
     final sm = ScaffoldMessenger.of(context);
-    final db = FirebaseFirestore.instance;
 
+    final db = FirebaseFirestore.instance;
     try {
       final driverDoc = await db
           .collection('Driver')
           .where('PhoneNumber', isEqualTo: currentUser?.phoneNumber)
           .limit(1)
           .get();
-      if (driverDoc.docs.isEmpty) {
-        sm.showSnackBar(const SnackBar(
-            content: Text("User with this phone doesn't exists")));
-        return AuthResult.failure;
+      if (driverDoc.docs.isNotEmpty) {
+        if (driverDoc.docs.first.data()['Password'] != currentPass) {
+          sm.showSnackBar(
+            const SnackBar(
+              content: Text('Incorrect Current Password'),
+            ),
+          );
+          return false;
+        }
+        await driverDoc.docs.first.reference.update({
+          'Password': newPass,
+          'isDefaultPassword': false,
+        });
+        return true;
       }
-      if (driverDoc.docs.first.data()['Password'] == pasword) {
-        ref
-            .read(userProvider.notifier)
-            .setUser(UserState.fromMap(driverDoc.docs.first.data()));
-        sm.showSnackBar(
-            const SnackBar(content: Text('User Logged in Successfully')));
-
-        return AuthResult.success;
-      }
-      sm.showSnackBar(const SnackBar(content: Text('Password does not match')));
-      return AuthResult.failure;
+      return false;
     } catch (e) {
       if (e is FirebaseAuthException) {
         sm.showSnackBar(
@@ -141,7 +162,7 @@ class Authenticator {
         ),
       );
       print(e.toString());
-      return AuthResult.failure;
+      return false;
     }
   }
 

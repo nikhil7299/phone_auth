@@ -39,7 +39,8 @@ class _EnterOtpViewState extends ConsumerState<EnterOtpView> {
           ),
           FilledButton(
               onPressed: () async {
-                await ref.read(authStateProvider.notifier).validateOtp(context,
+                await ref.read(authStateProvider.notifier).validateOtpAndSignIn(
+                    context,
                     verificationId: widget.verificationId,
                     otp: otpComtroller.text);
               },
