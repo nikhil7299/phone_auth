@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "719806134070",
+    "project_id": "phone-auth-9de56",
+    "storage_bucket": "phone-auth-9de56.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:719806134070:android:065aa081faf2543d1ca597",
+        "android_client_info": {
+          "package_name": "com.appfurious.phone_auth"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDaHyOLp2hkGnO5mBIoOc0bFsIVPXInjH4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
